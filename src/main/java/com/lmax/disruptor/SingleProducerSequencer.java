@@ -54,6 +54,7 @@ abstract class SingleProducerSequencerFields extends SingleProducerSequencerPad
 public final class SingleProducerSequencer extends SingleProducerSequencerFields
 {
     protected long p1, p2, p3, p4, p5, p6, p7;
+    private Sequence[] lastObservedViewOfGatingSequences;
 
     /**
      * Construct a Sequencer with the selected wait strategy and buffer size.
@@ -77,10 +78,11 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
         long wrapPoint = (nextValue + requiredCapacity) - bufferSize;
         long cachedGatingSequence = this.cachedValue;
 
-        if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue)
+        if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue || gatingSequencesHaveBeenUpdated())
         {
             long minSequence = Util.getMinimumSequence(gatingSequences, nextValue);
             this.cachedValue = minSequence;
+            lastObservedViewOfGatingSequences = gatingSequences;
 
             if (wrapPoint > minSequence)
             {
@@ -117,7 +119,7 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
         long wrapPoint = nextSequence - bufferSize;
         long cachedGatingSequence = this.cachedValue;
 
-        if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue)
+        if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue || gatingSequencesHaveBeenUpdated())
         {
             long minSequence;
             while (wrapPoint > (minSequence = Util.getMinimumSequence(gatingSequences, nextValue)))
@@ -126,6 +128,7 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
             }
 
             this.cachedValue = minSequence;
+            lastObservedViewOfGatingSequences = gatingSequences;
         }
 
         this.nextValue = nextSequence;
@@ -217,5 +220,10 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
     public long getHighestPublishedSequence(long lowerBound, long availableSequence)
     {
         return availableSequence;
+    }
+
+    private boolean gatingSequencesHaveBeenUpdated()
+    {
+        return lastObservedViewOfGatingSequences != gatingSequences;
     }
 }

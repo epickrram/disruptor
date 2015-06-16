@@ -44,6 +44,8 @@ public final class MultiProducerSequencer extends AbstractSequencer
     private final int indexMask;
     private final int indexShift;
 
+    private volatile Sequence[] lastObservedViewOfGatingSequences;
+
     /**
      * Construct a Sequencer with the selected wait strategy and buffer size.
      *
@@ -73,10 +75,11 @@ public final class MultiProducerSequencer extends AbstractSequencer
         long wrapPoint = (cursorValue + requiredCapacity) - bufferSize;
         long cachedGatingSequence = gatingSequenceCache.get();
 
-        if (wrapPoint > cachedGatingSequence || cachedGatingSequence > cursorValue)
+        if (wrapPoint > cachedGatingSequence || cachedGatingSequence > cursorValue || gatingSequencesHaveBeenUpdated())
         {
             long minSequence = Util.getMinimumSequence(gatingSequences, cursorValue);
             gatingSequenceCache.set(minSequence);
+            lastObservedViewOfGatingSequences = this.gatingSequences;
 
             if (wrapPoint > minSequence)
             {
@@ -127,7 +130,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
             long wrapPoint = next - bufferSize;
             long cachedGatingSequence = gatingSequenceCache.get();
 
-            if (wrapPoint > cachedGatingSequence || cachedGatingSequence > current)
+            if (wrapPoint > cachedGatingSequence || cachedGatingSequence > current || gatingSequencesHaveBeenUpdated())
             {
                 long gatingSequence = Util.getMinimumSequence(gatingSequences, current);
 
@@ -138,6 +141,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
                 }
 
                 gatingSequenceCache.set(gatingSequence);
+                lastObservedViewOfGatingSequences = gatingSequences;
             }
             else if (cursor.compareAndSet(current, next))
             {
@@ -295,5 +299,10 @@ public final class MultiProducerSequencer extends AbstractSequencer
     private int calculateIndex(final long sequence)
     {
         return ((int) sequence) & indexMask;
+    }
+
+    private boolean gatingSequencesHaveBeenUpdated()
+    {
+        return lastObservedViewOfGatingSequences != gatingSequences;
     }
 }
